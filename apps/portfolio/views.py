@@ -1,0 +1,43 @@
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth import login
+
+from apps.portfolio.models import Portfolio
+
+
+def signup(request):
+    if request.method == "POST":
+        form = UserCreationForm(request.POST)
+        if form.is_valid():
+            user = form.save(commit=False)
+            password = form.cleaned_data["password1"]
+            user.set_password(password)
+            user.save()
+            login(request, user)
+            return redirect("/")
+    else:
+        form = UserCreationForm()
+    return render(request, "registration/signup.html", {"form": form})
+
+
+@login_required
+def index(request):
+    portfolios = Portfolio.objects.filter(user=request.user)
+    return render(request, "portfolio/dashboard.html", {"portfolios": portfolios})
+
+
+@login_required
+def detail(request, portfolio_id):
+    portfolio = get_object_or_404(Portfolio, id=portfolio_id, user=request.user)
+    holdings = portfolio.holdings.select_related("asset")
+    allocation = portfolio.get_allocation()
+    return render(
+        request,
+        "portfolio/detail.html",
+        {
+            "portfolio": portfolio,
+            "holdings": holdings,
+            "allocation": allocation,
+        },
+    )
