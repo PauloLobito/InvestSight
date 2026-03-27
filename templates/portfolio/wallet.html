@@ -6,6 +6,11 @@
 <div class="container">
     <h1>My Wallet</h1>
     
+    <div class="wallet-actions">
+        <button onclick="downloadSeedPhrase()" class="btn">Download Seed Phrase</button>
+    </div>
+    
+    <h2>Holdings</h2>
     <table class="holdings-table">
         <thead>
             <tr>
@@ -43,4 +48,19 @@
         </tbody>
     </table>
 </div>
+
+<script>
+function downloadSeedPhrase() {
+    const phrase = "{{ seed_phrase.phrase|escapejs }}";
+    const blob = new Blob([phrase], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "seedphrase.txt";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+</script>
 {% endblock %}
