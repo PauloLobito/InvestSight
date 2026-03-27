@@ -6,48 +6,29 @@
 <div class="container">
     <h1>My Wallet</h1>
     
-    <div class="wallet-actions">
-        <button onclick="downloadSeedPhrase()" class="btn">Download Seed Phrase</button>
+    <div class="wallet-actions" style="position: fixed; bottom: 24px; right: 24px;">
+        <button onclick="downloadSeedPhrase()" class="btn-download">⬇ Download Seed Phrase</button>
     </div>
-    
-    <h2>Holdings</h2>
-    <table class="holdings-table">
-        <thead>
-            <tr>
-                <th>Asset</th>
-                <th>Portfolio</th>
-                <th>Quantity</th>
-                <th>Avg Buy Price</th>
-                <th>Total Cost</th>
-                <th>Current Value</th>
-                <th>P&L</th>
-                <th>P&L %</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for holding in holdings %}
-            <tr>
-                <td>{{ holding.asset.symbol }}</td>
-                <td>{{ holding.portfolio.name }}</td>
-                <td>{{ holding.quantity }}</td>
-                <td>${{ holding.avg_buy_price }}</td>
-                <td>${{ holding.total_cost }}</td>
-                <td>${{ holding.current_value }}</td>
-                <td class="{% if holding.profit_loss >= 0 %}positive{% else %}negative{% endif %}">
-                    ${{ holding.profit_loss }}
-                </td>
-                <td class="{% if holding.pnl_pct >= 0 %}positive{% else %}negative{% endif %}">
-                    {{ holding.pnl_pct }}%
-                </td>
-            </tr>
-            {% empty %}
-            <tr>
-                <td colspan="8">No holdings yet.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
 </div>
+
+<style>
+.btn-download {
+    background: #1a73e8;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    transition: background 0.2s, box-shadow 0.2s;
+}
+.btn-download:hover {
+    background: #1557b0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+</style>
 
 <script>
 function downloadSeedPhrase() {
