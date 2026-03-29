@@ -4,6 +4,7 @@ from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import login
 
 from apps.portfolio.models import Portfolio
+from apps.wallet.models import SeedPhrase
 
 
 def signup(request):
@@ -38,3 +39,11 @@ def detail(request, portfolio_id):
             "allocation": allocation,
         },
     )
+
+
+@login_required
+def wallet(request):
+    seed_phrase = getattr(request.user, "seed_phrase", None)
+    if not seed_phrase:
+        seed_phrase = SeedPhrase.objects.create(user=request.user)
+    return render(request, "portfolio/wallet.html", {"seed_phrase": seed_phrase})
