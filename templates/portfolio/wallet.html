@@ -11,6 +11,12 @@
         <p>Already have a wallet? Import it using your seed phrase.</p>
         <a href="{% url 'portfolio:import_step1' %}" class="btn-import">Import Wallet</a>
     </div>
+
+    <div class="wallet-card">
+        <h2>Receive Cryptocurrency</h2>
+        <p>Get your public address to receive crypto deposits.</p>
+        <a href="{% url 'portfolio:receive_crypto_list' %}" class="btn-receive">Select Cryptocurrency</a>
+    </div>
     
     {% if not seed_phrase.is_downloaded %}
     <div class="wallet-actions" style="position: fixed; bottom: 24px; right: 24px;">
@@ -47,6 +53,30 @@
 }
 .btn-import:hover {
     background: #218838;
+}
+.btn-receive {
+    display: inline-block;
+    background: #F7931A;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+.btn-receive:hover {
+    background: #e08600;
+}
+.btn-eth {
+    background: #627EEA;
+}
+.btn-eth:hover {
+    background: #4a62c7;
+}
+.crypto-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
 }
 .btn-download {
     background: #1a73e8;
