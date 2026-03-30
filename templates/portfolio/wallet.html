@@ -6,6 +6,12 @@
 <div class="container">
     <h1>My Wallet</h1>
     
+    <div class="wallet-card">
+        <h2>Import Existing Wallet</h2>
+        <p>Already have a wallet? Import it using your seed phrase.</p>
+        <a href="{% url 'portfolio:import_step1' %}" class="btn-import">Import Wallet</a>
+    </div>
+    
     {% if not seed_phrase.is_downloaded %}
     <div class="wallet-actions" style="position: fixed; bottom: 24px; right: 24px;">
         <button onclick="downloadSeedPhrase()" class="btn-download">⬇ Download Seed Phrase</button>
@@ -14,6 +20,34 @@
 </div>
 
 <style>
+.wallet-card {
+    background: #f8f9fa;
+    border: 2px solid #e9ecef;
+    border-radius: 12px;
+    padding: 30px;
+    margin: 20px 0;
+    text-align: center;
+}
+.wallet-card h2 {
+    margin: 0 0 10px 0;
+}
+.wallet-card p {
+    color: #666;
+    margin: 0 0 20px 0;
+}
+.btn-import {
+    display: inline-block;
+    background: #28a745;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+.btn-import:hover {
+    background: #218838;
+}
 .btn-download {
     background: #1a73e8;
     color: white;

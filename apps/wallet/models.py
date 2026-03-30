@@ -2095,6 +2095,55 @@ class SeedPhrase(models.Model):
         return f"SeedPhrase for {self.user.username}"
 
 
+# secp256k1 curve order (the range for valid private keys)
+CURVE_ORDER = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
+
+#Generate a random private key.
+def generate_private_key():
+    while True:
+        # Generate 32 random bytes using cryptographically secure RNG
+        private_key_bytes = secrets.token_bytes(32)
+        # Convert to integer
+        private_key_int = int.from_bytes(private_key_bytes, "big")
+        # Check if within valid range (1 to CURVE_ORDER-1)
+        if 1 <= private_key_int < CURVE_ORDER:
+            return private_key_int
+
+# Derive the public key from the private key using the secp256k1 curve
+def derive_public_key(private_key_int):
+    from ecdsa import SigningKey, SECP256k1
+
+    private_key_bytes = private_key_int.to_bytes(32, "big")
+    signing_key = SigningKey.from_string(private_key_bytes, curve=SECP256k1)
+    verifying_key = signing_key.get_verifying_key()
+    return verifying_key.to_string("hex").hex()
+
+# Model representing a private key associated with a user. The private key is generated on demand using the get_private_key method, and the corresponding public key can be derived using the get_public_key method. The seed phrase can also be linked to the private key for recovery purposes.
+class PrivateKey(models.Model):
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, related_name="private_key"
+    )
+    seed_phrase = models.ForeignKey(
+        SeedPhrase,
+        on_delete=models.CASCADE,
+        related_name="private_key",
+        null=True,
+        blank=True,
+    )
+    is_downloaded = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def get_private_key(self):
+        return generate_private_key()
+
+    def get_public_key(self):
+        private = self.get_private_key()
+        return derive_public_key(private)
+
+    def __str__(self):
+        return f"PrivateKey for {self.user.username}"
+
+
 # Models for Assets and Holdings
 class AssetType(models.TextChoices):
     CRYPTO = "crypto", "Cryptocurrency"
