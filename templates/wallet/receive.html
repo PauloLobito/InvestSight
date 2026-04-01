@@ -197,6 +197,21 @@
     </div>
 </div>
 
+<!-- New Address Modal -->
+<div id="newAddressModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <h2>Generate New Address</h2>
+        <p>This creates the next derived address for {{ crypto_info.symbol }}.</p>
+        <div class="warning-box">
+            <p>Your old addresses remain valid and can still receive funds.</p>
+        </div>
+        <div class="modal-buttons">
+            <button onclick="closeNewAddressModal()" class="btn-secondary">Cancel</button>
+            <button onclick="generateNewAddress()" class="btn-primary">Generate</button>
+        </div>
+    </div>
+</div>
+
 <!-- Demo Balance Modal -->
 <div id="demoBalanceModal" class="modal" style="display: none;">
     <div class="modal-content">
@@ -712,7 +727,10 @@ function loadWallet() {
         currentSeedPhrase = saved;
         masterSeed = mnemonicToSeed(currentSeedPhrase);
         const savedIndex = localStorage.getItem('investsight_hd_index');
-        currentAddressIndex = savedIndex ? parseInt(savedIndex) : 0;
+        currentAddressIndex = savedIndex ? parseInt(savedIndex, 10) : 0;
+        if (Number.isNaN(currentAddressIndex) || currentAddressIndex < 0) {
+            currentAddressIndex = 0;
+        }
         
         document.getElementById('setupSection').style.display = 'none';
         document.getElementById('walletSection').style.display = 'block';
@@ -1080,7 +1098,6 @@ function importPhrase() {
 }
 
 function showNewAddressModal() {
-    const config = CRYPTO_CONFIG[currentCrypto];
     document.getElementById('newAddressModal').style.display = 'flex';
 }
 
