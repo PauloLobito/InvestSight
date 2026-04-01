@@ -13,6 +13,9 @@ urlpatterns = [
     path("wallet/import/password/", views.import_wallet_step3, name="import_step3"),
     path("wallet/import/complete/", views.import_wallet_step4, name="import_step4"),
     path("wallet/import/done/", views.import_wallet_complete, name="import_complete"),
+    path(
+        "wallet/transactions/log/", views.wallet_transaction_log, name="wallet_tx_log"
+    ),
     path("", views.index, name="index"),
     path("<int:portfolio_id>/", views.detail, name="detail"),
 ]

@@ -2470,3 +2470,38 @@ class Wallet(models.Model):
 
     def __str__(self):
         return f"Wallet for {self.user.username}"
+
+
+class WalletTransactionType(models.TextChoices):
+    RECEIVE = "receive", "Receive"
+    SEND = "send", "Send"
+    IMPORT = "import", "Import"
+    ADDRESS = "address", "New Address"
+    SECURITY = "security", "Security"
+
+
+class WalletTransaction(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="wallet_transactions",
+    )
+    transaction_type = models.CharField(
+        max_length=20,
+        choices=WalletTransactionType.choices,
+    )
+    asset_symbol = models.CharField(max_length=12, blank=True)
+    amount = models.DecimalField(max_digits=20, decimal_places=8, null=True, blank=True)
+    from_address = models.CharField(max_length=255, blank=True)
+    to_address = models.CharField(max_length=255, blank=True)
+    reference = models.CharField(max_length=128, blank=True)
+    note = models.CharField(max_length=255, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        symbol = self.asset_symbol or "N/A"
+        return f"{self.get_transaction_type_display()} {symbol} ({self.user})"

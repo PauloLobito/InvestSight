@@ -17,6 +17,44 @@
         <p>Get your public address to receive crypto deposits.</p>
         <a href="{% url 'portfolio:receive_crypto_list' %}" class="btn-receive">Select Cryptocurrency</a>
     </div>
+
+    <div class="wallet-card transaction-card">
+        <h2>Transaction History</h2>
+        {% if transactions %}
+        <div class="tx-table-wrap">
+            <table class="tx-table">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Asset</th>
+                        <th>Amount</th>
+                        <th>To Address</th>
+                        <th>When</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tx in transactions %}
+                    <tr>
+                        <td>{{ tx.get_transaction_type_display }}</td>
+                        <td>{{ tx.asset_symbol|default:"-" }}</td>
+                        <td>
+                            {% if tx.amount is not None %}
+                                {{ tx.amount }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td class="tx-address">{{ tx.to_address|default:"-" }}</td>
+                        <td>{{ tx.created_at|date:"Y-m-d H:i" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p>No transactions recorded yet.</p>
+        {% endif %}
+    </div>
     
     {% if not seed_phrase.is_downloaded %}
     <div class="wallet-actions" style="position: fixed; bottom: 24px; right: 24px;">
@@ -69,6 +107,35 @@
 .wallet-card p {
     color: #666;
     margin: 0 0 20px 0;
+}
+.transaction-card {
+    text-align: left;
+}
+.tx-table-wrap {
+    overflow-x: auto;
+}
+.tx-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    font-size: 14px;
+}
+.tx-table th,
+.tx-table td {
+    padding: 10px;
+    border-bottom: 1px solid #dee2e6;
+}
+.tx-table th {
+    background: #f1f3f5;
+    text-align: left;
+}
+.tx-address {
+    font-family: monospace;
+    font-size: 12px;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .btn-import {
     display: inline-block;

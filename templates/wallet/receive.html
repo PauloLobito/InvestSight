@@ -681,6 +681,26 @@ let masterSeed = '';
 let currentAddressIndex = 0;
 let currentCrypto = '{{ crypto }}';
 
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) {
+        return parts.pop().split(';').shift();
+    }
+    return '';
+}
+
+function logWalletTransaction(payload) {
+    fetch('{% url "portfolio:wallet_tx_log" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify(payload)
+    }).catch(() => null);
+}
+
 // Load wallet on page load
 document.addEventListener('DOMContentLoaded', loadWallet);
 
@@ -798,6 +818,15 @@ function saveDemoBalance(amount) {
     localStorage.setItem(balanceKey, amount.toString());
     loadBalance();
     updateFiatDisplay();
+
+    const config = CRYPTO_CONFIG[currentCrypto] || CRYPTO_CONFIG.bitcoin;
+    logWalletTransaction({
+        transaction_type: 'receive',
+        asset_symbol: config.symbol,
+        amount: amount,
+        to_address: address,
+        note: 'Balance updated in wallet receive page'
+    });
 }
 
 function showDemoBalanceModal() {
@@ -988,6 +1017,11 @@ function useNewPhrase() {
     
     localStorage.setItem('investsight_hd_seed', currentSeedPhrase);
     localStorage.setItem('investsight_hd_index', '0');
+
+    logWalletTransaction({
+        transaction_type: 'security',
+        note: 'Generated new wallet seed phrase'
+    });
     
     closeGenerateModal();
     document.getElementById('setupSection').style.display = 'none';
@@ -1033,6 +1067,11 @@ function importPhrase() {
     localStorage.setItem('investsight_hd_seed', currentSeedPhrase);
     localStorage.setItem('investsight_hd_index', '0');
     localStorage.removeItem('investsight_pwd_hash'); // Clear old password
+
+    logWalletTransaction({
+        transaction_type: 'import',
+        note: `Imported ${words.length}-word seed phrase`
+    });
     
     closeImportModal();
     document.getElementById('setupSection').style.display = 'none';
@@ -1053,6 +1092,16 @@ function generateNewAddress() {
     currentAddressIndex++;
     localStorage.setItem('investsight_hd_index', currentAddressIndex.toString());
     displayAddress();
+
+    const address = document.getElementById('addressDisplay').textContent;
+    const config = CRYPTO_CONFIG[currentCrypto] || CRYPTO_CONFIG.bitcoin;
+    logWalletTransaction({
+        transaction_type: 'address',
+        asset_symbol: config.symbol,
+        to_address: address,
+        note: `Generated address index ${currentAddressIndex}`
+    });
+
     closeNewAddressModal();
 }
 
@@ -1090,6 +1139,11 @@ function downloadQR() {
 
 function clearWallet() {
     if (confirm('Are you sure? Make sure you have your seed phrase saved!')) {
+        logWalletTransaction({
+            transaction_type: 'security',
+            note: 'Cleared wallet from local storage'
+        });
+
         localStorage.removeItem('investsight_hd_seed');
         localStorage.removeItem('investsight_hd_index');
         localStorage.removeItem('investsight_pwd_hash');

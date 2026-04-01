@@ -3,9 +3,13 @@ from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import login
+from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import csrf_protect
+from decimal import Decimal, InvalidOperation
+import json
 
 from apps.portfolio.models import Portfolio
-from apps.wallet.models import SeedPhrase
+from apps.wallet.models import SeedPhrase, WalletTransaction, WalletTransactionType
 
 
 # This view handles user signup. It uses Django's built-in UserCreationForm to create a new user. If the form is valid, it saves the user, logs them in, and redirects to the homepage. If the request method is GET, it simply renders the signup form.
@@ -52,15 +56,21 @@ def wallet(request):
         seed_phrase = SeedPhrase.objects.create(user=request.user)
 
     if request.method == "POST":
-        import json
-
         data = json.loads(request.body)
         if data.get("action") == "mark_downloaded":
             seed_phrase.is_downloaded = True
             seed_phrase.save()
             return JsonResponse({"status": "ok"})
 
-    return render(request, "portfolio/wallet.html", {"seed_phrase": seed_phrase})
+    transactions = WalletTransaction.objects.filter(user=request.user)[:25]
+    return render(
+        request,
+        "portfolio/wallet.html",
+        {
+            "seed_phrase": seed_phrase,
+            "transactions": transactions,
+        },
+    )
 
 
 def import_wallet_step1(request):
@@ -135,10 +145,61 @@ def import_wallet_complete(request):
                     user=request.user
                 )
                 seed_phrase_obj.save()
+                WalletTransaction.objects.create(
+                    user=request.user,
+                    transaction_type=WalletTransactionType.IMPORT,
+                    note="Wallet imported with seed phrase",
+                    metadata={"word_count": len(seed_phrase.split())},
+                )
 
         return redirect("portfolio:wallet")
 
     return redirect("portfolio:index")
+
+
+@csrf_protect
+@require_POST
+@login_required
+def wallet_transaction_log(request):
+    try:
+        data = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"status": "error", "message": "Invalid JSON"}, status=400)
+
+    tx_type = data.get("transaction_type", "").strip().lower()
+    valid_types = {choice[0] for choice in WalletTransactionType.choices}
+    if tx_type not in valid_types:
+        return JsonResponse(
+            {"status": "error", "message": "Invalid transaction type"}, status=400
+        )
+
+    amount = data.get("amount")
+    parsed_amount = None
+    if amount not in (None, ""):
+        try:
+            parsed_amount = Decimal(str(amount))
+        except InvalidOperation, ValueError, TypeError:
+            return JsonResponse(
+                {"status": "error", "message": "Invalid amount"}, status=400
+            )
+
+    metadata = data.get("metadata")
+    if not isinstance(metadata, dict):
+        metadata = {}
+
+    tx = WalletTransaction.objects.create(
+        user=request.user,
+        transaction_type=tx_type,
+        asset_symbol=(data.get("asset_symbol", "") or "")[:12].upper(),
+        amount=parsed_amount,
+        from_address=(data.get("from_address", "") or "")[:255],
+        to_address=(data.get("to_address", "") or "")[:255],
+        reference=(data.get("reference", "") or "")[:128],
+        note=(data.get("note", "") or "")[:255],
+        metadata=metadata,
+    )
+
+    return JsonResponse({"status": "ok", "id": tx.id})
 
 
 # This view displays a list of supported cryptocurrencies for receiving funds. It retrieves the cryptocurrency information from the CRYPTO_REGISTRY and renders a template that lists all available cryptocurrencies along with their metadata, such as name, symbol, and icon.
@@ -154,8 +215,6 @@ def receive_crypto_list(request):
 # This view handles the page for receiving cryptocurrency. Address generation is fully client-side from the user's local seed phrase; the backend only provides crypto metadata and the BIP39 wordlist.
 @login_required
 def receive_crypto(request, crypto: str = "bitcoin"):
-    import json
-
     from apps.wallet.models import CRYPTO_REGISTRY, WORDLIST
 
     crypto = crypto.lower()
