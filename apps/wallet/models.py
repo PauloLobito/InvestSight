@@ -2080,22 +2080,21 @@ def generate_seed_phrase() -> str:
     return " ".join(words)
 
 
-# Model of the seed phrase associated with a user. The seed phrase is encrypted and stored securely.
+# Model of the seed phrase associated with a user.
+# SECURITY: The actual seed phrase is NEVER stored in the database.
+# It is generated client-side in the browser using JavaScript.
+# This model only tracks whether the user has downloaded their seed phrase.
 class SeedPhrase(models.Model):
     user = models.OneToOneField(
         User, on_delete=models.CASCADE, related_name="seed_phrase"
-    )
-    _phrase = models.TextField(
-        null=True, blank=True, help_text="Encrypted seed phrase stored securely"
     )
     is_downloaded = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def get_phrase(self):
-        if self._phrase is None:
-            self._phrase = generate_seed_phrase()
-            self.save(update_fields=["_phrase"])
-        return self._phrase
+        raise NotImplementedError(
+            "Seed phrases are generated client-side for security."
+        )
 
     def __str__(self):
         return f"SeedPhrase for {self.user.username}"
@@ -2335,21 +2334,16 @@ class PrivateKey(models.Model):
         null=True,
         blank=True,
     )
-    _private_key_value = models.TextField(
-        null=True, blank=True, help_text="Encrypted private key stored securely"
-    )
     is_downloaded = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def get_private_key(self):
-        if self._private_key_value is None:
-            self._private_key_value = str(generate_private_key())
-            self.save(update_fields=["_private_key_value"])
-        return int(self._private_key_value)
+        raise NotImplementedError(
+            "Private keys are generated client-side for security."
+        )
 
     def get_public_key(self):
-        private = self.get_private_key()
-        return derive_public_key(private)
+        raise NotImplementedError("Public keys are derived client-side for security.")
 
     # Method to derive the public address for a given cryptocurrency based on the public key and the specific derivation method defined in the CRYPTO_REGISTRY. It supports multiple cryptocurrencies and their respective address formats.
     def get_public_address(self, crypto: str = "bitcoin", mainnet: bool = True) -> str:
