@@ -5,7 +5,7 @@ description = "Crypto and stock portfolio tracker"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-    "Django>=5.0,<6.0",
+    "django>=5.0,<6.0",
     "django-environ>=0.11",
     "fastapi>=0.110",
     "uvicorn[standard]>=0.29",
