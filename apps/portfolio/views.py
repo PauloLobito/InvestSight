@@ -3,11 +3,15 @@ from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import login
-from django.contrib import messages
+from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import csrf_protect
+from datetime import datetime, timedelta
+from decimal import Decimal, InvalidOperation
+import json
 
 from apps.portfolio.models import Portfolio
-from apps.wallet.models import SeedPhrase, PrivateKey
-
+from apps.wallet.models import SeedPhrase, WalletTransaction, WalletTransactionType
+from apps.apis.services.unified import get_price as get_live_price
 
 
 # This view handles user signup. It uses Django's built-in UserCreationForm to create a new user. If the form is valid, it saves the user, logs them in, and redirects to the homepage. If the request method is GET, it simply renders the signup form.
@@ -24,14 +28,13 @@ def signup(request):
     return render(request, "registration/signup.html", {"form": form})
 
 
-# Show the dashboard of the user when he is logged in
+#
 @login_required
 def index(request):
     portfolios = Portfolio.objects.filter(user=request.user)
     return render(request, "portfolio/dashboard.html", {"portfolios": portfolios})
 
 
-# Shows a specific portfolio of the user.It needs to be authenticated!
 @login_required
 def detail(request, portfolio_id):
     portfolio = get_object_or_404(Portfolio, id=portfolio_id, user=request.user)
@@ -56,15 +59,21 @@ def wallet(request):
         seed_phrase = SeedPhrase.objects.create(user=request.user)
 
     if request.method == "POST":
-        import json
-
         data = json.loads(request.body)
         if data.get("action") == "mark_downloaded":
             seed_phrase.is_downloaded = True
             seed_phrase.save()
             return JsonResponse({"status": "ok"})
 
-    return render(request, "portfolio/wallet.html", {"seed_phrase": seed_phrase})
+    transactions = WalletTransaction.objects.filter(user=request.user)[:25]
+    return render(
+        request,
+        "portfolio/wallet.html",
+        {
+            "seed_phrase": seed_phrase,
+            "transactions": transactions,
+        },
+    )
 
 
 def import_wallet_step1(request):
@@ -139,10 +148,100 @@ def import_wallet_complete(request):
                     user=request.user
                 )
                 seed_phrase_obj.save()
+                WalletTransaction.objects.create(
+                    user=request.user,
+                    transaction_type=WalletTransactionType.IMPORT,
+                    note="Wallet imported with seed phrase",
+                    metadata={"word_count": len(seed_phrase.split())},
+                )
 
         return redirect("portfolio:wallet")
 
     return redirect("portfolio:index")
+
+
+# This view handles logging wallet transactions. It expects a POST request with JSON data containing the transaction details. It validates the transaction type, amount, and metadata, and if everything is valid, it creates a new WalletTransaction object linked to the user. Finally, it returns a JSON response indicating success or any validation errors that occurred.
+@csrf_protect
+@require_POST
+@login_required
+def wallet_transaction_log(request):
+    try:
+        data = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"status": "error", "message": "Invalid JSON"}, status=400)
+
+    tx_type = data.get("transaction_type", "").strip().lower()
+    valid_types = {choice[0] for choice in WalletTransactionType.choices}
+    if tx_type not in valid_types:
+        return JsonResponse(
+            {"status": "error", "message": "Invalid transaction type"}, status=400
+        )
+
+    amount = data.get("amount")
+    parsed_amount = None
+    if amount not in (None, ""):
+        try:
+            parsed_amount = Decimal(str(amount))
+        except InvalidOperation, ValueError, TypeError:
+            return JsonResponse(
+                {"status": "error", "message": "Invalid amount"}, status=400
+            )
+
+    metadata = data.get("metadata")
+    if not isinstance(metadata, dict):
+        metadata = {}
+
+    tx = WalletTransaction.objects.create(
+        user=request.user,
+        transaction_type=tx_type,
+        asset_symbol=(data.get("asset_symbol", "") or "")[:12].upper(),
+        amount=parsed_amount,
+        from_address=(data.get("from_address", "") or "")[:255],
+        to_address=(data.get("to_address", "") or "")[:255],
+        reference=(data.get("reference", "") or "")[:128],
+        note=(data.get("note", "") or "")[:255],
+        metadata=metadata,
+    )
+
+    return JsonResponse({"status": "ok", "id": tx.id})
+
+
+@login_required
+def wallet_live_price(request, symbol: str):
+    target_currency = request.GET.get("target_currency", "USD").upper()
+    if len(target_currency) != 3 or not target_currency.isalpha():
+        return JsonResponse(
+            {"status": "error", "message": "Invalid target currency"}, status=400
+        )
+
+    result = get_live_price(symbol.upper(), target_currency=target_currency)
+    if result is None:
+        return JsonResponse(
+            {"status": "error", "message": "Price not found"}, status=404
+        )
+
+    if result.timestamp < datetime.utcnow() - timedelta(minutes=15):
+        return JsonResponse(
+            {
+                "status": "error",
+                "message": "Live quote is stale",
+                "symbol": result.symbol,
+                "provider": result.provider,
+                "timestamp": result.timestamp.isoformat(),
+            },
+            status=503,
+        )
+
+    return JsonResponse(
+        {
+            "status": "ok",
+            "symbol": result.symbol,
+            "price": str(result.price),
+            "currency": result.currency,
+            "provider": result.provider,
+            "timestamp": result.timestamp.isoformat(),
+        }
+    )
 
 
 # This view displays a list of supported cryptocurrencies for receiving funds. It retrieves the cryptocurrency information from the CRYPTO_REGISTRY and renders a template that lists all available cryptocurrencies along with their metadata, such as name, symbol, and icon.
@@ -154,44 +253,25 @@ def receive_crypto_list(request):
         request, "wallet/crypto_list.html", {"cryptos": CRYPTO_REGISTRY.items()}
     )
 
-# This view handles the page for receiving cryptocurrency. It checks if the user has a private key and creates one if it doesn't exist. It then checks if the requested cryptocurrency is supported in the CRYPTO_REGISTRY. If it is, it generates the public address and QR code for that cryptocurrency and renders the receive page with the relevant information. If the cryptocurrency is not supported, it redirects to the list of supported cryptocurrencies.
+
+# This view handles the page for receiving cryptocurrency. Address generation is fully client-side from the user's local seed phrase; the backend only provides crypto metadata and the BIP39 wordlist.
 @login_required
 def receive_crypto(request, crypto: str = "bitcoin"):
-    from apps.wallet.models import CRYPTO_REGISTRY
-
-    private_key = getattr(request.user, "private_key", None)
-    if not private_key:
-        private_key = PrivateKey.objects.create(user=request.user)
+    from apps.wallet.models import CRYPTO_REGISTRY, WORDLIST
 
     crypto = crypto.lower()
 
     if crypto not in CRYPTO_REGISTRY:
         return redirect("portfolio:receive_crypto_list")
 
-    public_address = private_key.get_public_address(crypto)
-    qr_code = private_key.get_qr_code(public_address)
     crypto_info = CRYPTO_REGISTRY[crypto]
 
     return render(
         request,
         "wallet/receive.html",
         {
-            "public_address": public_address,
-            "qr_code": qr_code,
             "crypto": crypto,
             "crypto_info": crypto_info,
+            "wordlist": json.dumps(WORDLIST),
         },
-# Shows the user's wallet!
-@login_required
-def wallet(request):
-    holdings = Holding.objects.filter(portfolio__user=request.user).select_related(
-        "asset", "portfolio"
-    )
-    seed_phrase = getattr(request.user, "seed_phrase", None)
-    if not seed_phrase:
-        seed_phrase = SeedPhrase.objects.create(user=request.user)
-    return render(
-        request,
-        "portfolio/wallet.html",
-        {"holdings": holdings, "seed_phrase": seed_phrase},
     )

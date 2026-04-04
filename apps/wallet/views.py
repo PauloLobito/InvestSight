@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 
-from apps.wallet.models import Wallet
+from apps.wallet.models import Wallet, WalletTransaction, WalletTransactionType
 from services.wallet_service import WalletService
 
 
@@ -33,6 +33,11 @@ def wallet_create(request):
 
         service = WalletService()
         wallet, seed_phrase = service.create_wallet(request.user, password)
+        WalletTransaction.objects.create(
+            user=request.user,
+            transaction_type=WalletTransactionType.SECURITY,
+            note="Wallet created",
+        )
         request.session["pending_seed_phrase"] = seed_phrase
         return redirect("wallet:show_seed")
 
@@ -70,6 +75,12 @@ def wallet_restore(request):
         service = WalletService()
         try:
             wallet = service.restore_wallet(request.user, seed_phrase, password)
+            WalletTransaction.objects.create(
+                user=request.user,
+                transaction_type=WalletTransactionType.IMPORT,
+                note="Wallet restored from seed phrase",
+                metadata={"word_count": len(seed_phrase.split())},
+            )
             messages.success(request, "Wallet restored successfully!")
             return redirect("wallet:wallet")
         except ValueError as e:

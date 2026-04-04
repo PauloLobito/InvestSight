@@ -2074,8 +2074,8 @@ WORDLIST = [
     "zoo",
 ]
 
-
-class EncryptedField(models.BinaryField):
+#The EncryptedField creates a personalized encrypted field for storing sensitive data like seed phrases.Define 512 as the default max_length for the field, but allow it to be overridden if needed.Remove the max_lenght of the migrations to clean up the database schema since the actual seed phrase is not stored in the database and the field is only a placeholder for tracking whether the seed phrase has been downloaded by the user.
+class EncryptedField(models.CharField):
     def __init__(self, *args, **kwargs):
         kwargs.setdefault("max_length", 512)
         super().__init__(*args, **kwargs)
@@ -2138,7 +2138,7 @@ def derive_public_key(private_key_int):
     verifying_key = signing_key.get_verifying_key()
     return verifying_key.to_string("raw").hex()
 
-
+#
 def hash160(public_key_bytes: bytes) -> bytes:
     from hashlib import sha256, new
 
@@ -2459,7 +2459,7 @@ class Holding(models.Model):
     def __str__(self):
         return f"{self.asset.symbol} x {self.quantity}"
 
-
+# Model representing a cryptocurrency wallet associated with a user, storing an encrypted seed phrase for security. The wallet can be used to manage multiple cryptocurrencies and track transactions.
 class Wallet(models.Model):
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
@@ -2472,3 +2472,38 @@ class Wallet(models.Model):
 
     def __str__(self):
         return f"Wallet for {self.user.username}"
+
+# Enumeration for different types of wallet transactions, such as receiving, sending, importing, creating a new address, or security-related actions. This helps categorize and manage transactions within the wallet.
+class WalletTransactionType(models.TextChoices):
+    RECEIVE = "receive", "Receive"
+    SEND = "send", "Send"
+    IMPORT = "import", "Import"
+    ADDRESS = "address", "New Address"
+    SECURITY = "security", "Security"
+
+# Model representing a transaction within a cryptocurrency wallet, including details such as the type of transaction, asset involved, amount, addresses, and any additional metadata. This model allows for tracking and managing all wallet-related transactions for a user.
+class WalletTransaction(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="wallet_transactions",
+    )
+    transaction_type = models.CharField(
+        max_length=20,
+        choices=WalletTransactionType.choices,
+    )
+    asset_symbol = models.CharField(max_length=12, blank=True)
+    amount = models.DecimalField(max_digits=20, decimal_places=8, null=True, blank=True)
+    from_address = models.CharField(max_length=255, blank=True)
+    to_address = models.CharField(max_length=255, blank=True)
+    reference = models.CharField(max_length=128, blank=True)
+    note = models.CharField(max_length=255, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+# Meta class to define the default ordering of wallet transactions by creation date in descending order, ensuring that the most recent transactions are displayed first when querying the database. The __str__ method provides a human-readable representation of the transaction, including the type, asset symbol, and user involved.
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        symbol = self.asset_symbol or "N/A"
+        return f"{self.get_transaction_type_display()} {symbol} ({self.user})"
