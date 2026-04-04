@@ -18,6 +18,7 @@ def signup(request):
         form = UserCreationForm(request.POST)
         if form.is_valid():
             user = form.save()
+            Portfolio.objects.create(name="My Portfolio", user=user)
             login(request, user)
             return redirect("/")
     else:
@@ -155,6 +156,7 @@ def import_wallet_complete(request):
         return redirect("portfolio:wallet")
 
     return redirect("portfolio:index")
+
 
 # This view handles logging wallet transactions. It expects a POST request with JSON data containing the transaction details. It validates the transaction type, amount, and metadata, and if everything is valid, it creates a new WalletTransaction object linked to the user. Finally, it returns a JSON response indicating success or any validation errors that occurred.
 @csrf_protect
